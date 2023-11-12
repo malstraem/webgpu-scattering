@@ -19,11 +19,11 @@ struct Earth {
 @group(0) @binding(3) var nightSampler: sampler;
 @group(0) @binding(4) var nightTexture: texture_2d<f32>;
 
-const inScatterCount = 40;
-const outScatterCount = 4;
-const pi = 3.14159265;
+const InScatterCount = 80;
+const OutScatterCount = 8;
+const PI = 3.14159265;
 
-const ssaa = 4;
+const SSAA = 4;
 
 const earth = Earth(vec4(vec3(), 1), 0.15);
 
@@ -54,39 +54,15 @@ fn getSphereIntersects(ray: Ray, radius: f32) -> vec2f
 
   var d = (b * b) - c;
 
-  if (d < 0)
+  if (d < 0f)
   {
-    return vec2(1e-4, -1e-4);
+    return vec2(1e4f, -1e4f);
   }
 
   d = sqrt(d);
 
   return vec2(-b - d, -b + d);
 }
-
-/*fn getSphereIntersects(ray: Ray, spherePosition: vec3f, radius: f32) -> vec2f
-{
-    var relativeOrigin = ray.origin - spherePosition; // rayOrigin in sphere space
-
-    let a = 1f;
-    let b = 2f * dot(relativeOrigin, ray.direction);
-    let c = dot(relativeOrigin, relativeOrigin) - radius * radius;
-    
-    let d = b * b - 4f * a * c;
-
-    if (d < 0f)
-    {
-        return false; // no intersection
-    }
-
-    let r0 = (-b - sqrt(d)) / (2f * a);
-    let r1 = (-b + sqrt(d)) / (2f * a);
-
-    t0 = min(r0, r1);
-    t1 = max(r0, r1);
-
-    return t1 >= 0f;
-}*/
 
 fn density(point: vec3f, ph: f32) -> f32
 {
@@ -95,12 +71,13 @@ fn density(point: vec3f, ph: f32) -> f32
 
 fn optic(point: vec3f, q: vec3f, ph: f32) -> f32
 {
-  let s = (q - point) / f32(outScatterCount);
+  let s = (q - point) / OutScatterCount;
+
   var v = point + (s * 0.5);
 
   var sum = 0f;
 
-  for (var i = 0; i < outScatterCount; i++)
+  for (var i = 0; i < OutScatterCount; i++)
   {
     sum += density(v, ph);
     v += s;
@@ -109,12 +86,12 @@ fn optic(point: vec3f, q: vec3f, ph: f32) -> f32
   return sum * length(s);
 }
 
-fn ray_phase(cc: f32) -> f32
+fn rayPhase(cc: f32) -> f32
 {
-  return 3f / 16f / pi * (1f + cc);
+  return 3f / 16f / PI * (1f + cc);
 }
 
-fn mie_phase(g: f32, c: f32, cc: f32) -> f32
+fn miePhase(g: f32, c: f32, cc: f32) -> f32
 {
   let gg = g * g;
   let a = (1f - gg) * (1f + cc);
@@ -122,7 +99,7 @@ fn mie_phase(g: f32, c: f32, cc: f32) -> f32
 
   b *= sqrt(b) * (2f + gg);
 
-  return 3f / 8f / pi * a / b;
+  return 3f / 8f / PI * a / b;
 }
 
 fn getScattering(ray: Ray, intersects: vec2f, lightDirection: vec3f) -> vec3f
@@ -131,8 +108,8 @@ fn getScattering(ray: Ray, intersects: vec2f, lightDirection: vec3f) -> vec3f
   let phMie = 0.02;
   let kMieEx = 1.1;
 
-  let kRay = vec3f(3.8, 13.5, 33);
-  let kMie = vec3f(21);
+  let kRay = vec3(3.8, 13.5, 33);
+  let kMie = vec3(21f);
 
   var sumRay = vec3f();
   var sumMie = vec3f();
@@ -140,12 +117,12 @@ fn getScattering(ray: Ray, intersects: vec2f, lightDirection: vec3f) -> vec3f
   var nRay0 = 0f;
   var nMie0 = 0f;
 
-  let len = (intersects.y - intersects.x) / f32(inScatterCount);
+  let len = (intersects.y - intersects.x) / InScatterCount;
 
   let s = ray.direction * len;
   var v = ray.origin + (ray.direction * (intersects.x + (len * 0.5)));
 
-  for (var i = 0; i < inScatterCount; i++)
+  for (var i = 0; i < InScatterCount; i++)
   {
     v += s;
 
@@ -163,7 +140,7 @@ fn getScattering(ray: Ray, intersects: vec2f, lightDirection: vec3f) -> vec3f
     let nRay1 = optic(v, u, phRay);
     let nMie1 = optic(v, u, phMie);
 
-    let attenuate = exp(-((nRay0 + nRay1) * kRay) - ((nMie0 + nMie1) * kMie * kMieEx));
+    let attenuate = exp((-(nRay0 + nRay1) * kRay) - ((nMie0 + nMie1) * kMie * kMieEx));
 
     sumRay += dRay * attenuate;
     sumMie += dMie * attenuate;
@@ -172,7 +149,7 @@ fn getScattering(ray: Ray, intersects: vec2f, lightDirection: vec3f) -> vec3f
   let c = dot(ray.direction, -lightDirection);
   let cc = c * c;
 
-  let scattering = (sumRay * kRay * ray_phase(cc)) + (sumMie * kMie * mie_phase(-0.8, c, cc));
+  let scattering = (sumRay * kRay * rayPhase(cc)) + (sumMie * kMie * miePhase(-0.8, c, cc));
 
   return 10 * scattering;
 }
@@ -185,29 +162,29 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
   let eye = vec3f(0, 0, 3);
 
   let lightDirection = vec3f(0, 0, 1);
+
   let rayDirection = getRayDirection(45, uniforms.resolution, fragcoord);
 
-  let planetRotation = getRotation(vec2f(0, uniforms.time / 10));
-  let atmosphereRotation = getRotation(vec2f(-0.1, uniforms.time));
+  let planetRotation = getRotation(vec2(0, uniforms.time / 10));
+  let atmosphereRotation = getRotation(vec2(0.1, uniforms.time));
 
   var planetRay = Ray(planetRotation * eye, planetRotation * rayDirection);
-  let atmosphereRay = Ray(atmosphereRotation * eye, atmosphereRotation * rayDirection);
+  let atmosphereRay = Ray(eye * atmosphereRotation, rayDirection * atmosphereRotation);
 
   var planetIntersects = getSphereIntersects(planetRay, earth.planet.w);
   var atmosphereIntersects = getSphereIntersects(atmosphereRay, earth.planet.w + earth.atmosphereThickness);
 
   atmosphereIntersects.y = min(atmosphereIntersects.y, planetIntersects.x);
-  //atmosphereIntersects.x = max(atmosphereIntersects.x, planetIntersects.x);
 
   let scattering = getScattering(atmosphereRay, atmosphereIntersects, lightDirection);
 
   var planet = vec3f();
 
-  for (var m = -ssaa / 2; m < ssaa / 2; m++)
+  for (var m = -SSAA / 2; m < SSAA / 2; m++)
   {
-      for (var n = -ssaa / 2; n < ssaa / 2; n++)
+      for (var n = -SSAA / 2; n < SSAA / 2; n++)
       {
-          let aaOffset = vec2f(f32(m), f32(n)) / f32(ssaa);
+          let aaOffset = vec2(f32(m), f32(n)) / SSAA;
 
           let planetRayDirection = getRayDirection(45, uniforms.resolution, fragcoord + aaOffset);
 
@@ -219,10 +196,10 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
           {
             let position = planetRay.origin + (planetRay.direction * planetIntersects.x);
 
-            let latitude = 90 - (acos(position.y / length(position)) * 180 / pi);
-            let longitude = atan2(position.x, position.z) * 180 / pi;
+            let latitude = 90 - (acos(position.y / length(position)) * 180 / PI);
+            let longitude = atan2(position.x, position.z) * 180 / PI;
 
-            var uv = vec2f(longitude / 360, latitude / 180) + 0.5;
+            var uv = vec2(longitude / 360, latitude / 180) + 0.5;
 
             let light = dot(normalize(atmosphereRay.origin + (atmosphereRay.direction * planetIntersects.x)), lightDirection);
 
@@ -234,7 +211,7 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
       }
   }
 
-  planet /= f32(ssaa * ssaa);
+  planet /= SSAA * SSAA;
 
-  return vec4f(planet + scattering, 1);
+  return vec4(planet + scattering, 1);
 }

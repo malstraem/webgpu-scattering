@@ -153,26 +153,26 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
         }]
     });
 
-    return {pipeline, uniformBuffer, uniformBindGroup}
+    return { pipeline, uniformBuffer, uniformBindGroup }
 }
 
 var time = 0;
 
-async function run(){
+async function run() {
     const canvas = document.querySelector('canvas')
 
     if (canvas === null)
         throw new Error('Canvas not found')
 
-    const {device, context, presentationFormat} = await initWebGPU(canvas)
+    const { device, context, presentationFormat } = await initWebGPU(canvas)
 
-    const {pipeline, uniformBuffer, uniformBindGroup} = await initPipeline(device, presentationFormat)
+    const { pipeline, uniformBuffer, uniformBindGroup } = await initPipeline(device, presentationFormat)
 
     function frame() {
         let uniforms = new Float32Array(4)
         uniforms[0] = canvas!.width
         uniforms[1] = canvas!.height
-        uniforms[2] = time / 100
+        uniforms[2] = time / 500
 
         time++
 
@@ -206,4 +206,5 @@ async function run(){
         size.height = canvas.height = canvas.clientHeight * devicePixelRatio
     })*/
 }
+
 run()
