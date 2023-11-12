@@ -204,7 +204,7 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
             let light = dot(normalize(atmosphereRay.origin + (atmosphereRay.direction * planetIntersects.x)), lightDirection);
 
             var dayColor = mix(textureSampleBaseClampToEdge(dayTexture, daySampler, uv).rgb, scattering, 0.5) * light;
-            let nightColor = pow(textureSampleBaseClampToEdge(nightTexture, nightSampler, uv).rgb, vec3(1.2));
+            let nightColor = pow(textureSampleBaseClampToEdge(nightTexture, nightSampler, uv).rgb, vec3(1.5));
 
             planet += mix(nightColor, dayColor, smoothstep(-earth.atmosphereThickness, earth.atmosphereThickness, light));
           }

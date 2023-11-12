@@ -201,10 +201,10 @@ async function run() {
 
     frame()
 
-    /*window.addEventListener('resize', ()=>{
-        size.width = canvas.width = canvas.clientWidth * devicePixelRatio
-        size.height = canvas.height = canvas.clientHeight * devicePixelRatio
-    })*/
+    window.addEventListener('resize', ()=> {
+        canvas.width = canvas.clientWidth * devicePixelRatio
+        canvas.height = canvas.clientHeight * devicePixelRatio
+    })
 }
 
 run()
