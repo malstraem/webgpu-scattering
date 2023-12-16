@@ -1,17 +1,14 @@
-.vs
-.idea
-.DS_Store
-dist
+.vs/
+.idea/
 
-logs
+dist/
+node_modules/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-node_modules
-package-lock.json
 
 *.local
 *.log
