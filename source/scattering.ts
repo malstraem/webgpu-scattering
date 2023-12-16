@@ -1,6 +1,10 @@
 import vertexCode from './shaders/quad.vert.wgsl?raw'
 import fragCode from './shaders/scattering.frag.wgsl?raw'
 
+const sampleCount = 4;
+
+var view: GPUTextureView;
+
 async function initWebGPU(canvas: HTMLCanvasElement) {
     if (!navigator.gpu)
         throw new Error('WebGPU is not supported')
@@ -74,6 +78,9 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
         },
         primitive: {
           topology: 'triangle-list'
+        },
+        multisample: {
+            count: sampleCount
         }
     })
 
@@ -84,9 +91,11 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
 
     const dayResponse = await fetch(new URL('textures/earth-day.jpg', import.meta.url).toString())
     const nightResponse = await fetch(new URL('textures/earth-night.jpg', import.meta.url).toString())
+    const cloudResponse = await fetch(new URL('textures/earth-clouds.jpg', import.meta.url).toString())
     
     const dayBitmap = await createImageBitmap(await dayResponse.blob())
     const nightBitmap = await createImageBitmap(await nightResponse.blob())
+    const cloudBitmap = await createImageBitmap(await cloudResponse.blob())
 
     let dayTexture = device.createTexture({
         size: [dayBitmap.width, dayBitmap.height, 1],
@@ -112,14 +121,19 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
         [nightBitmap.width, nightBitmap.height]
     )
 
-    const daySampler = device.createSampler({
-        magFilter: 'linear',
-        minFilter: 'linear',
-        addressModeU: 'clamp-to-edge',
-        addressModeV: 'clamp-to-edge'
+    let cloudTexture = device.createTexture({
+        size: [cloudBitmap.width, cloudBitmap.height, 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT
     })
 
-    const nightSampler = device.createSampler({
+    device.queue.copyExternalImageToTexture(
+        { source: cloudBitmap },
+        { texture: cloudTexture },
+        [cloudBitmap.width, cloudBitmap.height]
+    )
+
+    const sampler = device.createSampler({
         magFilter: 'linear',
         minFilter: 'linear',
         addressModeU: 'clamp-to-edge',
@@ -137,7 +151,7 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
         },
         {
             binding: 1,
-            resource: daySampler
+            resource: sampler
         },
         {
             binding: 2,
@@ -145,13 +159,13 @@ async function initPipeline(device: GPUDevice, format: GPUTextureFormat) {
         },
         {
             binding: 3,
-            resource: nightSampler
+            resource: nightTexture.createView()
         },
         {
             binding: 4,
-            resource: nightTexture.createView()
+            resource: cloudTexture.createView()
         }]
-    });
+    })
 
     return { pipeline, uniformBuffer, uniformBindGroup }
 }
@@ -168,6 +182,15 @@ async function run() {
 
     const { pipeline, uniformBuffer, uniformBindGroup } = await initPipeline(device, presentationFormat)
 
+    const texture = device.createTexture({
+        size: [canvas.width, canvas.height],
+        sampleCount,
+        format: presentationFormat,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+
+    view = texture.createView()
+
     function frame() {
         let uniforms = new Float32Array(4)
         uniforms[0] = canvas!.width
@@ -181,7 +204,8 @@ async function run() {
         const commandEncoder = device.createCommandEncoder()
         const renderPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [{
-                view: context.getCurrentTexture().createView(),
+                view: view,
+                resolveTarget: context.getCurrentTexture().createView(),
                 clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
                 loadOp: 'clear',
                 storeOp: 'store'
@@ -204,6 +228,15 @@ async function run() {
     window.addEventListener('resize', ()=> {
         canvas.width = canvas.clientWidth * devicePixelRatio
         canvas.height = canvas.clientHeight * devicePixelRatio
+
+        const texture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            sampleCount,
+            format: presentationFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+          });
+    
+        view = texture.createView()
     })
 }
 

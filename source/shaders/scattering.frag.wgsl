@@ -14,16 +14,16 @@ struct Earth {
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(1) var daySampler: sampler;
+@group(0) @binding(1) var texSampler: sampler;
 @group(0) @binding(2) var dayTexture: texture_2d<f32>;
-@group(0) @binding(3) var nightSampler: sampler;
-@group(0) @binding(4) var nightTexture: texture_2d<f32>;
+@group(0) @binding(3) var nightTexture: texture_2d<f32>;
+@group(0) @binding(4) var cloudTexture: texture_2d<f32>;
 
 const InScatterCount = 80;
 const OutScatterCount = 8;
 const PI = 3.14159265;
 
-const SSAA = 4;
+const SSAA = 8;
 
 const earth = Earth(vec4(vec3(), 1), 0.15);
 
@@ -166,9 +166,11 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
   let rayDirection = getRayDirection(45, uniforms.resolution, fragcoord);
 
   let planetRotation = getRotation(vec2(0, uniforms.time / 10));
+  let cloudRotation = getRotation(vec2(0, uniforms.time / 5));
   let atmosphereRotation = getRotation(vec2(0.1, uniforms.time));
 
   var planetRay = Ray(planetRotation * eye, planetRotation * rayDirection);
+  var cloudRay = Ray(cloudRotation * eye, cloudRotation * rayDirection);
   let atmosphereRay = Ray(eye * atmosphereRotation, rayDirection * atmosphereRotation);
 
   var planetIntersects = getSphereIntersects(planetRay, earth.planet.w);
@@ -196,17 +198,34 @@ fn main(@builtin(position) fragPosition : vec4f) -> @location(0) vec4f
           {
             let position = planetRay.origin + (planetRay.direction * planetIntersects.x);
 
+            let cloudPosition = position / uniforms.time;
+
             let latitude = 90 - (acos(position.y / length(position)) * 180 / PI);
             let longitude = atan2(position.x, position.z) * 180 / PI;
 
             var uv = vec2(longitude / 360, latitude / 180) + 0.5;
 
+            let latitude2 = 90 - (acos(cloudPosition.y / length(cloudPosition)) * 180 / PI);
+            let longitude2 = atan2(cloudPosition.x, cloudPosition.z) * 180 / PI;
+
+            var uv2 = vec2(longitude2 / 360, latitude2 / 180) + 0.5;
+
             let light = dot(normalize(atmosphereRay.origin + (atmosphereRay.direction * planetIntersects.x)), lightDirection);
 
-            var dayColor = mix(textureSampleBaseClampToEdge(dayTexture, daySampler, uv).rgb, scattering, 0.5) * light;
-            let nightColor = pow(textureSampleBaseClampToEdge(nightTexture, nightSampler, uv).rgb, vec3(1.5));
+            let cloud = textureSampleBaseClampToEdge(cloudTexture, texSampler, uv2).rgb;
 
-            planet += mix(nightColor, dayColor, smoothstep(-earth.atmosphereThickness, earth.atmosphereThickness, light));
+            var day = mix(textureSampleBaseClampToEdge(dayTexture, texSampler, uv).rgb, scattering, 0.6);
+            day += cloud;
+            day *= light;
+
+            //var dayColor = textureSampleBaseClampToEdge(dayTexture, texSampler, uv).rgb * light;
+
+            //dayColor = mix(dayColor, cloudColor, smoothstep(-earth.atmosphereThickness, earth.atmosphereThickness, light));
+
+            var night = pow(textureSampleBaseClampToEdge(nightTexture, texSampler, uv).rgb, vec3(1.8));
+            night += cloud / 32;
+
+            planet += mix(night, day, smoothstep(-earth.atmosphereThickness, earth.atmosphereThickness, light));
           }
       }
   }
